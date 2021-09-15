@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Música</string>
+    <string name="music">No hay música reproduciéndose en el teléfono</string>
+
+    <string name="vol_up">Subir volumen</string>
+    <string name="vol_down">Bajar volumen</string>
+    <string name="pre">Pista anterior</string>
+    <string name="next">Siguiente pista</string>
+    <string name="pause">Pausa</string>
+    <string name="resume">Continuar</string>
+</resources>

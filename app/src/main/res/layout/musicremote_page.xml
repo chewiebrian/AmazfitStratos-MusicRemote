@@ -7,28 +7,37 @@
     android:id="@+id/container"
     android:layout_height="match_parent">
 
+    <com.fgil55.amazfit.musicremote.ui.CurrentTimeTextView
+        android:id="@+id/time"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:textAlignment="center"
+        android:paddingTop="12dip"
+        android:textColor="@color/time"
+        android:textSize="12sp"/>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:gravity="center"
         android:orientation="vertical"
         android:layout_gravity="center"
         android:layout_height="match_parent">
-        <com.kieronquinn.app.springboardmusic.AlwaysMarqueeTextView
+        <com.fgil55.amazfit.musicremote.ui.AlwaysMarqueeTextView
             android:layout_width="match_parent"
             android:gravity="center_horizontal"
             android:layout_height="wrap_content"
             android:singleLine="true"
-            android:layout_marginLeft="18dp"
-            android:layout_marginRight="18dp"
+            android:layout_marginLeft="36dp"
+            android:layout_marginRight="36dp"
             tools:text="Artist"
             android:id="@+id/artist"/>
-        <com.kieronquinn.app.springboardmusic.AlwaysMarqueeTextView
+        <com.fgil55.amazfit.musicremote.ui.AlwaysMarqueeTextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
             android:text="@string/music"
-            android:layout_marginLeft="8dp"
-            android:layout_marginRight="8dp"
+            android:layout_marginLeft="32dp"
+            android:layout_marginRight="32dp"
             android:singleLine="true"
             android:id="@+id/track"/>
 
@@ -70,11 +79,11 @@
 
 
 
-        <com.kieronquinn.app.springboardmusic.AlwaysMarqueeTextView
+        <com.fgil55.amazfit.musicremote.ui.AlwaysMarqueeTextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="10dp"
-            android:layout_marginRight="10dp"
+            android:layout_marginLeft="32dp"
+            android:layout_marginRight="32dp"
             android:gravity="center_horizontal"
             android:singleLine="true"
             tools:text="Album"
@@ -82,25 +91,25 @@
     </LinearLayout>
 
 
-    <com.kieronquinn.app.springboardmusic.AlwaysMarqueeTextView
+    <com.fgil55.amazfit.musicremote.ui.AlwaysMarqueeTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:singleLine="true"
         android:paddingBottom="8dp"
-        android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp"
+        android:layout_marginLeft="36dp"
+        android:layout_marginRight="36dp"
         tools:text="Player"
         android:layout_gravity="bottom"
         android:textColor="?android:textColorSecondary"
         android:id="@+id/player"/>
 
-    <com.kieronquinn.app.springboardmusic.ProgressArc
+    <com.fgil55.amazfit.musicremote.ui.ProgressArc
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:id="@+id/progress"/>
 
-    <com.kieronquinn.app.springboardmusic.ProgressArc
+    <com.fgil55.amazfit.musicremote.ui.ProgressArc
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"

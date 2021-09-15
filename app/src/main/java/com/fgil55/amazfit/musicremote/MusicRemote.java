@@ -1,52 +1,39 @@
-package com.kieronquinn.app.springboardmusic;
+package com.fgil55.amazfit.musicremote;
 
+import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
-import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.huami.watch.companion.mediac.MediaInfo;
+import com.huami.watch.keyevent_lib.HMKeyDef;
+import com.huami.watch.keyevent_lib.KeyEventHelpers;
+import com.huami.watch.keyevent_lib.KeyeventConsumer;
+import com.huami.watch.keyevent_lib.KeyeventProcessor;
 import com.huami.watch.launcher.musiccontrol.CommandHandler;
 import com.huami.watch.launcher.musiccontrol.MusicAction;
 import com.huami.watch.launcher.musiccontrol.MusicConsoleClient;
 import com.huami.watch.launcher.musiccontrol.MusicStatusListener;
+import com.fgil55.amazfit.musicremote.ui.ProgressArc;
 
 import java.lang.reflect.Field;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicReference;
 
-import clc.sliteplugin.flowboard.AbstractPlugin;
-import clc.sliteplugin.flowboard.ISpringBoardHostStub;
-
-public class SpringboardPage extends AbstractPlugin {
-
-    /*
-
-        Example Springboard Page for the Amazfit Pace. This class requires the library JAR as well to work
-
-        A springboard page has two modes: App Mode and Springboard Mode (my names, not Huami's)
-
-        App Mode is when the page is disabled in the launcher, and launched instead from the app list.
-        This behaves like a normal app, but with limited functionality. Swiping from the right to left should not be used in this mode as it is used to close the app
-
-        Springboard Mode is when the page is shown in the launcher, note that you should not use swipe left or right in this mode, to allow the user to swipe between pages
-
-     */
+public class MusicRemote extends Activity implements KeyeventConsumer {
 
     //Tag for logging purposes. Change this to something suitable
-    private static final String TAG = "SpringboardMusic";
-    //As AbstractPlugin is not an Activity or Service, we can't just use "this" as a context or getApplicationContext, so Context is global to allow easier access
+    private static final String TAG = "MusicRemote";
     private Context mContext;
     //These get set up later
-    private View mView;
     private boolean mHasActive = false;
-    private ISpringBoardHostStub mHost = null;
     private CommandHandler commandHandler;
     private TextView artist, album, track, player;
     private ImageButton playPause, skipPrev, skipNext;
@@ -59,14 +46,29 @@ public class SpringboardPage extends AbstractPlugin {
     private long prevPos = 0;
     private long millis = 0;
     private long duration = 0;
+    private KeyeventProcessor mKeyeventProcessor;
+    private Timer timer = new Timer();
 
-    //Much like a fragment, getView returns the content view of the page. You can set up your layout here
     @Override
-    public View getView(Context paramContext) {
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        setContentView(createView(this.getApplicationContext()));
+        setupListener();
+        setWindowAlwaysOn();
+    }
+
+    private void setWindowAlwaysOn() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().getAttributes().screenBrightness = 0F;
+        //getWindow().getAttributes().dimAmount = 1F;
+    }
+
+    public View createView(final Context paramContext) {
         //Keep context
         this.mContext = paramContext;
         //Inflate layout as required. The layout here being inflated is "widget_blank"
-        this.mView = LayoutInflater.from(paramContext).inflate(R.layout.springboard_page, null);
+        View mView = LayoutInflater.from(paramContext).inflate(R.layout.musicremote_page, null);
         //Set up variables from layout
         artist = mView.findViewById(R.id.artist);
         album = mView.findViewById(R.id.album);
@@ -80,8 +82,9 @@ public class SpringboardPage extends AbstractPlugin {
             @Override
             public void onClick(View v) {
                 //If in volume picker mode, turn volume down. Otherwise, skip backwards
-                if (commandHandler != null) commandHandler.sendAction(isVolumePicker ? new MusicAction("vol_down") : new MusicAction("pre"));
-                if(isVolumePicker) setupHideVolume();
+                if (commandHandler != null)
+                    commandHandler.sendAction(isVolumePicker ? new MusicAction("vol_down") : new MusicAction("pre"));
+                if (isVolumePicker) setupHideVolume();
             }
         });
         skipNext = mView.findViewById(R.id.skipNext);
@@ -89,8 +92,9 @@ public class SpringboardPage extends AbstractPlugin {
             @Override
             public void onClick(View v) {
                 //If in volume picker mode, turn volume up. Otherwise, skip forwards
-                if (commandHandler != null) commandHandler.sendAction(isVolumePicker ? new MusicAction("vol_up") : new MusicAction("next"));
-                if(isVolumePicker) setupHideVolume();
+                if (commandHandler != null)
+                    commandHandler.sendAction(isVolumePicker ? new MusicAction("vol_up") : new MusicAction("next"));
+                if (isVolumePicker) setupHideVolume();
             }
         });
         playPause = mView.findViewById(R.id.playPause);
@@ -98,7 +102,8 @@ public class SpringboardPage extends AbstractPlugin {
             @Override
             public void onClick(View v) {
                 //If playing, pause. If not, play
-                if (commandHandler != null) commandHandler.sendAction(isPlaying ? new MusicAction("pause") : new MusicAction("resume"));
+                if (commandHandler != null)
+                    commandHandler.sendAction(isPlaying ? new MusicAction("pause") : new MusicAction("resume"));
             }
         });
         //Long press on play/pause switches between volume and normal controls
@@ -106,57 +111,84 @@ public class SpringboardPage extends AbstractPlugin {
             @Override
             public boolean onLongClick(View v) {
                 //Ignore if there's no music loaded (volume isn't loaded until music is)
-                if(!hasLoadedMusic)return true;
+                if (!hasLoadedMusic) return true;
                 //Toggle the volume picker
                 toggleVolumePicker();
                 return true;
             }
         });
+
+        final AtomicReference<Toast> toast = new AtomicReference<>();
+
+        this.mKeyeventProcessor = new KeyeventProcessor(new KeyEventHelpers.EventCallBack() {
+            @Override
+            public boolean onKeyClick(HMKeyDef.HMKeyEvent hmKeyEvent) {
+                final MusicCommand command;
+                switch (hmKeyEvent) {
+                    case KEY_UP:
+                        command = isVolumePicker ? MusicCommand.VOL_DOWN : MusicCommand.PRE;
+                        break;
+                    case KEY_DOWN:
+                        command = isVolumePicker ? MusicCommand.VOL_UP : MusicCommand.NEXT;
+                        break;
+                    case KEY_CENTER:
+                        command = isPlaying ? MusicCommand.PAUSE : MusicCommand.RESUME;
+                        break;
+                    default:
+                        return false;
+                }
+
+                if (commandHandler != null)
+                    commandHandler.sendAction(command.getAction());
+
+                if (toast.get() != null) toast.get().cancel();
+                toast.set(Toast.makeText(paramContext, command.getResourceLabelId(), Toast.LENGTH_SHORT));
+                toast.get().show();
+                return true;
+            }
+
+            @Override
+            public boolean onKeyLongOneSecond(HMKeyDef.HMKeyEvent hmKeyEvent) {
+                return false;
+            }
+
+            @Override
+            public boolean onKeyLongOneSecondTimeOut(HMKeyDef.HMKeyEvent hmKeyEvent) {
+                if (hmKeyEvent != HMKeyDef.HMKeyEvent.KEY_CENTER && hasLoadedMusic) {
+                    MusicRemote.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            toggleVolumePicker();
+                        }
+                    });
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onKeyLongThreeSecond(HMKeyDef.HMKeyEvent hmKeyEvent) {
+                return false;
+            }
+
+            @Override
+            public boolean onKeyLongThreeSecondTimeOut(HMKeyDef.HMKeyEvent hmKeyEvent) {
+                return false;
+            }
+        });
+
         //Start the timer, running every second
-        timer.scheduleAtFixedRate(t,1000,1000);
-        return this.mView;
+        timer.scheduleAtFixedRate(t, 1000, 1000);
+        return mView;
     }
 
-    //Return the icon for this page, used when the page is disabled in the app list. In this case, the launcher icon is used
-    @Override
-    public Bitmap getWidgetIcon(Context paramContext) {
-        return ((BitmapDrawable) this.mContext.getDrawable(R.mipmap.ic_launcher)).getBitmap();
-    }
-
-    //Return the launcher intent for this page. This might be used for the launcher as well when the page is disabled?
-    @Override
-    public Intent getWidgetIntent() {
-        //No intent required
-        return new Intent();
-    }
-
-    //Return the title for this page, used when the page is disabled in the app list
-    @Override
-    public String getWidgetTitle(Context paramContext) {
-        return this.mContext.getResources().getString(R.string.music);
-    }
-
-    //Called when the page is shown
-    @Override
-    public void onActive(Bundle paramBundle) {
-        super.onActive(paramBundle);
-        //Check if the view is already inflated (reloading)
-        if ((!this.mHasActive) && (this.mView != null)) {
-            //It is, simply refresh
-            refreshView();
-        }
-        //Store active state
-        this.mHasActive = true;
-        //Set up music listeners
-        setupListener();
-    }
 
     //Toggles the volume picker's visibility
-    private void toggleVolumePicker(){
+    private void toggleVolumePicker() {
         //Toggle main variable
         isVolumePicker = !isVolumePicker;
         //Specific code for when the picker is shown
-        if(isVolumePicker){
+        if (isVolumePicker) {
             setupHideVolume();
         }
         //Update the volume picker's state
@@ -164,16 +196,17 @@ public class SpringboardPage extends AbstractPlugin {
     }
 
     private TimerTask hideVolume;
-    private void setupHideVolume(){
+
+    private void setupHideVolume() {
         //Cancel previous task is required
-        if(hideVolume != null){
+        if (hideVolume != null) {
             hideVolume.cancel();
         }
         hideVolume = new TimerTask() {
             @Override
             public void run() {
                 //Hide the picker (must be run on UI)
-                getHost().runTaskOnUI(SpringboardPage.this, new Runnable() {
+                MusicRemote.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         isVolumePicker = false;
@@ -183,7 +216,7 @@ public class SpringboardPage extends AbstractPlugin {
             }
         };
         //Run after 5s (doesn't matter if the user has already hidden it)
-        timer.schedule(hideVolume, 5000);
+        timer.schedule(hideVolume, 8000);
     }
 
     //Updates the state of the volume picker views
@@ -262,8 +295,17 @@ public class SpringboardPage extends AbstractPlugin {
             });
             //Send "so" signal. The decompiled code from the launcher suggests this is sent when the watch wakes up, maybe to update media info from when it was asleep?
             commandHandler.sendAction(new MusicAction("so"));
+            sleep();
+            commandHandler.sendAction(new MusicAction("so"));
         } catch (NoSuchFieldException | IllegalAccessException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void sleep() {
+        try {
+            Thread.sleep(250);
+        } catch (Throwable e) {
         }
     }
 
@@ -286,7 +328,7 @@ public class SpringboardPage extends AbstractPlugin {
         //Allow long press volume control
         hasLoadedMusic = true;
         //All updates to UI must be run on the main thread
-        getHost().runTaskOnUI(this, new Runnable() {
+        MusicRemote.this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 //Update textviews
@@ -295,7 +337,8 @@ public class SpringboardPage extends AbstractPlugin {
                 if (track != null) track.setText(mediaInfo.title);
                 if (player != null) player.setText(mediaInfo.mediaPlayerName);
                 //Update volume arc with the volume's percentage
-                if (volumeArc != null) volumeArc.setProgress((double) mediaInfo.currVol / (double) mediaInfo.maxVol);
+                if (volumeArc != null)
+                    volumeArc.setProgress((double) mediaInfo.currVol / (double) mediaInfo.maxVol);
                 //Update the play/pause button. Playing is state 3, paused is 2
                 if (mediaInfo.state == 3) {
                     //Playing
@@ -308,35 +351,35 @@ public class SpringboardPage extends AbstractPlugin {
                     isPlaying = false;
                 }
                 //Sometimes the listener will fire a second time with an incorrect position that's identical to the previous one. We can ignore this by remembering the previous position and, if it matches, not updating the arc
-                if(mediaInfo.pos != prevPos){
+                if (mediaInfo.pos != prevPos) {
                     millis = mediaInfo.pos;
                     prevPos = millis;
                 }
                 //Update duration of song
                 duration = mediaInfo.duration;
                 //Update position of progress arc
-                if(progressArc != null)progressArc.setProgress((double) mediaInfo.pos / (double) mediaInfo.duration);
+                if (progressArc != null)
+                    progressArc.setProgress((double) mediaInfo.pos / (double) mediaInfo.duration);
                 //Log.d(TAG, "Updating media info to " + mediaInfo.toString() + "\npos: " + mediaInfo.pos + "\nprogress: " + ((double) mediaInfo.pos / (double) mediaInfo.duration));
             }
         });
     }
 
-    //Main timer
-    private Timer timer = new Timer();
     //Main timer task, only called once so can be global
     private TimerTask t = new TimerTask() {
         @Override
         public void run() {
             //Only trigger if the position needs updating and there's actually a song playing
-            if(millis < duration && isPlaying){
+            if (millis < duration && isPlaying) {
                 //Increment the milliseconds by 1s
                 millis += 1000;
                 //Updating UI so main thread is required
-                getHost().runTaskOnUI(SpringboardPage.this, new Runnable() {
+                MusicRemote.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         //Update progress of the arc
-                        if(progressArc != null)progressArc.setProgress((double) millis / (double) duration);
+                        if (progressArc != null)
+                            progressArc.setProgress((double) millis / (double) duration);
                     }
                 });
             }
@@ -347,34 +390,15 @@ public class SpringboardPage extends AbstractPlugin {
         //Called when the page reloads, check for updates here if you need to
     }
 
-    //Returns the springboard host
-    public ISpringBoardHostStub getHost() {
-        return this.mHost;
-    }
-
-    //Called when the page is loading and being bound to the host
-    @Override
-    public void onBindHost(ISpringBoardHostStub paramISpringBoardHostStub) {
-        //Store host
-        this.mHost = paramISpringBoardHostStub;
-    }
-
     //Called when the page is destroyed completely (in app mode). Same as the onDestroy method of an activity
     @Override
     public void onDestroy() {
         super.onDestroy();
-    }
-
-    //Called when the page becomes inactive (the user has scrolled away)
-    @Override
-    public void onInactive(Bundle paramBundle) {
-        super.onInactive(paramBundle);
-        //Store active state
         this.mHasActive = false;
-        //Remove listener to prevent crashes/free memory
-        if (commandHandler != null) {
-            commandHandler.setStatusListener(null);
-        }
+        timer.cancel();
+        timer.purge();
+        this.finishAndRemoveTask();
+        System.exit(0);         //no need for package to stay running on background
     }
 
     //Called when the page is paused (in app mode)
@@ -384,18 +408,13 @@ public class SpringboardPage extends AbstractPlugin {
         this.mHasActive = false;
     }
 
-    //Not sure what this does, can't find it being used anywhere. Best leave it alone
-    @Override
-    public void onReceiveDataFromProvider(int paramInt, Bundle paramBundle) {
-        super.onReceiveDataFromProvider(paramInt, paramBundle);
-    }
 
     //Called when the page is shown again (in app mode)
     @Override
     public void onResume() {
         super.onResume();
         //Check if view already loaded
-        if ((!this.mHasActive) && (this.mView != null)) {
+        if ((!this.mHasActive)) {
             //It is, simply refresh
             this.mHasActive = true;
             refreshView();
@@ -409,5 +428,21 @@ public class SpringboardPage extends AbstractPlugin {
     public void onStop() {
         super.onStop();
         this.mHasActive = false;
+    }
+
+    @Override
+    public boolean canAccept() {
+        return mHasActive;
+    }
+
+    @Override
+    public void injectKeyevent(KeyEvent keyEvent) {
+        if (mKeyeventProcessor != null) mKeyeventProcessor.injectKeyEvent(keyEvent);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        this.injectKeyevent(event);
+        return true;
     }
 }

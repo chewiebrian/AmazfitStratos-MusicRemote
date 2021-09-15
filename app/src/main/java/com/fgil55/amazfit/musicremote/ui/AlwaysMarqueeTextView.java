@@ -1,4 +1,4 @@
-package com.kieronquinn.app.springboardmusic;
+package com.fgil55.amazfit.musicremote.ui;
 
 import android.content.Context;
 import android.graphics.Rect;
@@ -6,6 +6,7 @@ import android.os.CountDownTimer;
 import android.support.v7.widget.AppCompatTextView;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.view.View;
 
 /*
 
@@ -64,11 +65,11 @@ public class AlwaysMarqueeTextView extends AppCompatTextView {
 
     @Override
     protected void onFocusChanged(boolean focused, int direction, Rect previouslyFocusedRect) {
-        if (focused)super.onFocusChanged(focused, direction, previouslyFocusedRect);
+        if (focused) super.onFocusChanged(focused, direction, previouslyFocusedRect);
     }
 
     @Override
     public void onWindowFocusChanged(boolean focused) {
-        if (focused)super.onWindowFocusChanged(focused);
+        if (focused) super.onWindowFocusChanged(focused);
     }
 }
